@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRON ARENA</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Audiowide&family=Chakra+Petch:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0a0a0f;
+            color: #e0e0e0;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Background Grid */
+        .bg-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(255, 140, 0, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 140, 0, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: 0;
+            animation: gridPulse 4s ease-in-out infinite;
+        }
+
+        @keyframes gridPulse {
+
+            0%,
+            100% {
+                opacity: 0.5;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        .glow-line {
+            position: fixed;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #ff8c00, transparent);
+            opacity: 0.3;
+            z-index: 0;
+            animation: scanLine 8s linear infinite;
+        }
+
+        .glow-line:nth-child(2) {
+            top: 20%;
+            width: 100%;
+            animation-duration: 6s;
+        }
+
+        .glow-line:nth-child(3) {
+            top: 50%;
+            width: 100%;
+            animation-duration: 10s;
+            animation-delay: 2s;
+        }
+
+        .glow-line:nth-child(4) {
+            top: 80%;
+            width: 100%;
+            animation-duration: 7s;
+            animation-delay: 4s;
+        }
+
+        @keyframes scanLine {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(100%);
+            }
+        }
+
+        /* Menu */
+        #menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 10;
+        }
+
+        .title {
+            font-family: 'Audiowide', sans-serif;
+            font-size: 72px;
+            font-weight: 900;
+            letter-spacing: 12px;
+            background: linear-gradient(135deg, #ff8c00, #ffffff, #ff8c00);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: titleGlow 3s ease-in-out infinite;
+            margin-bottom: 8px;
+        }
+
+        @keyframes titleGlow {
+
+            0%,
+            100% {
+                background-position: 0% 50%;
+                filter: brightness(1);
+            }
+
+            50% {
+                background-position: 100% 50%;
+                filter: brightness(1.3);
+            }
+        }
+
+        .subtitle {
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 14px;
+            letter-spacing: 8px;
+            color: rgba(255, 140, 0, 0.5);
+            margin-bottom: 50px;
+            text-transform: uppercase;
+        }
+
+        /* Inputs */
+        input {
+            width: 320px;
+            padding: 14px 24px;
+            margin: 8px;
+            font-size: 18px;
+            font-family: 'Chakra Petch', sans-serif;
+            font-weight: 400;
+            letter-spacing: 3px;
+            text-align: center;
+            background: rgba(255, 140, 0, 0.05);
+            border: 1px solid rgba(255, 140, 0, 0.25);
+            color: #ff8c00;
+            outline: none;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        input::placeholder {
+            color: rgba(255, 140, 0, 0.3);
+            letter-spacing: 4px;
+        }
+
+        input:focus {
+            border-color: #ff8c00;
+            background: rgba(255, 140, 0, 0.1);
+            box-shadow: 0 0 25px rgba(255, 140, 0, 0.15), inset 0 0 25px rgba(255, 140, 0, 0.05);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-block;
+            padding: 14px 36px;
+            margin: 10px 8px;
+            font-size: 16px;
+            font-family: 'Chakra Petch', sans-serif;
+            font-weight: 700;
+            letter-spacing: 3px;
+            cursor: pointer;
+            background: transparent;
+            border: 1px solid rgba(255, 140, 0, 0.4);
+            color: #ff8c00;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 140, 0, 0.15), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn:hover {
+            border-color: #ff8c00;
+            box-shadow: 0 0 30px rgba(255, 140, 0, 0.2), inset 0 0 30px rgba(255, 140, 0, 0.05);
+            transform: translateY(-2px);
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: rgba(255, 140, 0, 0.1);
+            border-color: #ff8c00;
+        }
+
+        /* Sections */
+        #joinArea {
+            display: none;
+            margin-top: 20px;
+        }
+
+        #lobby {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .room-code {
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 28px;
+            letter-spacing: 6px;
+            color: #ff8c00;
+            margin: 10px 0;
+        }
+
+        .room-label {
+            font-size: 13px;
+            letter-spacing: 5px;
+            color: rgba(255, 140, 0, 0.4);
+            text-transform: uppercase;
+        }
+
+        .player-list {
+            margin: 20px 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .player-list li {
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 14px;
+            letter-spacing: 2px;
+            padding: 8px 20px;
+            margin: 6px 0;
+            background: rgba(255, 255, 255, 0.03);
+            border-left: 3px solid;
+            display: inline-block;
+        }
+
+        .waiting-text {
+            font-size: 13px;
+            letter-spacing: 4px;
+            color: rgba(255, 255, 255, 0.3);
+            animation: blink 1.5s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        /* Error Toast */
+        .error-toast {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: rgba(255, 46, 99, 0.15);
+            border: 1px solid rgba(255, 46, 99, 0.5);
+            color: #ff2e63;
+            padding: 14px 32px;
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 13px;
+            letter-spacing: 2px;
+            z-index: 100;
+            transition: transform 0.4s ease;
+        }
+
+        .error-toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Game Area */
+        #gameArea {
+            display: none;
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 1px solid rgba(255, 140, 0, 0.2);
+            box-shadow: 0 0 60px rgba(255, 140, 0, 0.08);
+        }
+
+        /* Scoreboard */
+        #scoreBoard {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            text-align: right;
+            z-index: 20;
+            font-family: 'Chakra Petch', sans-serif;
+        }
+
+        .score-entry {
+            font-size: 14px;
+            letter-spacing: 2px;
+            padding: 6px 0;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .score-name {
+            opacity: 0.7;
+        }
+
+        .score-value {
+            font-weight: 700;
+            font-size: 18px;
+            min-width: 20px;
+        }
+
+        .score-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .score-you {
+            opacity: 1 !important;
+        }
+
+        /* Leaderboard */
+        #leaderboard {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            background: rgba(10, 10, 15, 0.95);
+            border: 1px solid rgba(255, 140, 0, 0.3);
+            padding: 20px 24px;
+            z-index: 50;
+            display: none;
+            text-align: center;
+            transform: translateX(20px);
+            opacity: 0;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+
+        #leaderboard.show {
+            display: block;
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        .leaderboard-title {
+            font-family: 'Audiowide', sans-serif;
+            font-size: 18px;
+            color: #ff8c00;
+            margin-bottom: 16px;
+            letter-spacing: 3px;
+        }
+
+        .leaderboard-entry {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 14px;
+            margin: 5px 0;
+            background: rgba(255, 140, 0, 0.05);
+            border-left: 3px solid;
+            min-width: 220px;
+        }
+
+        .leaderboard-rank {
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+            width: 24px;
+        }
+
+        .leaderboard-name {
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 13px;
+            flex: 1;
+            text-align: left;
+            padding-left: 10px;
+        }
+
+        .leaderboard-score {
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        /* Countdown */
+        #countdown {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 120px;
+            font-weight: 900;
+            color: #ff8c00;
+            z-index: 30;
+            text-shadow: 0 0 80px rgba(255, 140, 0, 0.5);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        #countdown.visible {
+            opacity: 1;
+            animation: countPop 0.5s ease-out;
+        }
+
+        @keyframes countPop {
+            0% {
+                transform: translate(-50%, -50%) scale(2);
+                opacity: 0;
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(0.9);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Winner Overlay */
+        #winnerOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            z-index: 40;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        #winnerOverlay.show {
+            display: flex;
+        }
+
+        .winner-text {
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 20px;
+            letter-spacing: 6px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .winner-name {
+            font-family: 'Audiowide', sans-serif;
+            font-size: 56px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #ff8c00, #ffffff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 8px;
+            animation: winnerGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes winnerGlow {
+
+            0%,
+            100% {
+                filter: brightness(1);
+            }
+
+            50% {
+                filter: brightness(1.5);
+            }
+        }
+
+        /* Match End Buttons */
+        .match-end-actions {
+            margin-top: 40px;
+            display: flex;
+            gap: 20px;
+            opacity: 0;
+            animation: fadeInUp 0.5s ease forwards;
+            animation-delay: 1.5s;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .match-end-actions .btn {
+            min-width: 160px;
+            font-size: 15px;
+            padding: 14px 32px;
+        }
+
+        .btn-quit {
+            border-color: rgba(255, 46, 99, 0.5) !important;
+            color: #ff2e63 !important;
+        }
+
+        .btn-quit:hover {
+            border-color: #ff2e63 !important;
+            box-shadow: 0 0 30px rgba(255, 46, 99, 0.2), inset 0 0 30px rgba(255, 46, 99, 0.05) !important;
+        }
+
+        /* HUD Corners */
+        .hud-corner {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-color: rgba(255, 140, 0, 0.3);
+            border-style: solid;
+            z-index: 15;
+        }
+
+        .hud-tl {
+            top: 10px;
+            left: 10px;
+            border-width: 2px 0 0 2px;
+        }
+
+        .hud-tr {
+            top: 10px;
+            right: 10px;
+            border-width: 2px 2px 0 0;
+        }
+
+        .hud-bl {
+            bottom: 10px;
+            left: 10px;
+            border-width: 0 0 2px 2px;
+        }
+
+        .hud-br {
+            bottom: 10px;
+            right: 10px;
+            border-width: 0 2px 2px 0;
+        }
+
+        /* Round Info */
+        #roundInfo {
+            position: absolute;
+            top: 20px;
+            left: 30px;
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 11px;
+            letter-spacing: 3px;
+            color: rgba(255, 140, 0, 0.4);
+            z-index: 20;
+            text-transform: uppercase;
+        }
+
+        /* Controls Help */
+        #controlsHelp {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 10px;
+            letter-spacing: 3px;
+            color: rgba(255, 140, 0, 0.25);
+            z-index: 20;
+            text-transform: uppercase;
+            text-align: center;
+            transition: opacity 0.5s ease;
+        }
+
+        .divider {
+            width: 80px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 140, 0, 0.3), transparent);
+            margin: 20px auto;
+        }
+
+        /* Speed HUD */
+        #speedHud {
+            position: absolute;
+            bottom: 20px;
+            left: 30px;
+            font-family: 'Chakra Petch', sans-serif;
+            z-index: 20;
+            display: none;
+        }
+
+        .speed-label {
+            font-size: 9px;
+            letter-spacing: 3px;
+            color: rgba(255, 140, 0, 0.35);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .speed-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #ff8c00;
+            letter-spacing: 2px;
+            transition: color 0.3s ease, text-shadow 0.3s ease;
+        }
+
+        .speed-value.fast {
+            color: #ffaa00;
+            text-shadow: 0 0 20px rgba(255, 170, 0, 0.5);
+        }
+
+        .speed-value.danger {
+            color: #ff2e63;
+            text-shadow: 0 0 30px rgba(255, 46, 99, 0.6);
+            animation: speedPulse 0.6s ease-in-out infinite;
+        }
+
+        @keyframes speedPulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        .timer-value {
+            font-size: 11px;
+            letter-spacing: 2px;
+            color: rgba(255, 140, 0, 0.3);
+            margin-top: 6px;
+        }
+
+        .speed-bar-bg {
+            width: 120px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 2px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+
+        .speed-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff8c00, #ffaa00, #ff2e63);
+            border-radius: 2px;
+            transition: width 0.4s ease;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-grid"></div>
+    <div class="glow-line"></div>
+    <div class="glow-line"></div>
+    <div class="glow-line"></div>
+
+    <div id="errorToast" class="error-toast"></div>
+
+    <!-- Menu -->
+    <div id="menu">
+        <h1 class="title">TRON</h1>
+        <p class="subtitle">Light Cycle Arena</p>
+
+        <input id="playerName" placeholder="ENTER CALLSIGN" maxlength="12" />
+        <br>
+
+        <div style="margin-top: 10px;">
+            <button class="btn btn-primary" id="hostBtn">HOST GAME</button>
+            <button class="btn" id="openJoin">JOIN GAME</button>
+        </div>
+
+        <div id="joinArea">
+            <div class="divider"></div>
+            <input id="joinCode" placeholder="ROOM CODE" maxlength="4" />
+            <br>
+            <button class="btn btn-primary" id="joinBtn">ENTER ARENA</button>
+        </div>
+
+        <div id="lobby">
+            <div class="divider"></div>
+            <p class="room-label">Room Code</p>
+            <h2 class="room-code" id="roomCodeDisplay"></h2>
+            <ul class="player-list" id="playerList"></ul>
+            <p class="waiting-text" id="waitingText">WAITING FOR PLAYERS...</p>
+            <button class="btn btn-primary" id="startGame">LAUNCH MATCH</button>
+        </div>
+    </div>
+
+    <!-- Game Area -->
+    <div id="gameArea">
+        <div class="hud-corner hud-tl"></div>
+        <div class="hud-corner hud-tr"></div>
+        <div class="hud-corner hud-bl"></div>
+        <div class="hud-corner hud-br"></div>
+
+        <div id="roundInfo">6 LIVES · LAST ONE STANDING</div>
+        <div id="scoreBoard"></div>
+        <div id="countdown"></div>
+        <div id="controlsHelp">← LEFT &nbsp;&nbsp;|&nbsp;&nbsp; RIGHT →&nbsp;&nbsp;&nbsp;or&nbsp;&nbsp;&nbsp; A
+            &nbsp;&nbsp;|&nbsp;&nbsp; D</div>
+
+        <canvas id="game" width="1400" height="900"></canvas>
+
+        <div id="speedHud">
+            <div class="speed-label">SPEED</div>
+            <div class="speed-value" id="speedValue">2.5x</div>
+            <div class="speed-bar-bg">
+                <div class="speed-bar-fill" id="speedBar" style="width: 31%"></div>
+            </div>
+            <div class="timer-value" id="timerValue">00:00</div>
+        </div>
+
+        <div id="winnerOverlay">
+            <p class="winner-text">Match Winner</p>
+            <p class="winner-name" id="winnerName"></p>
+            <div class="match-end-actions">
+                <button class="btn btn-primary" id="restartBtn">RESTART</button>
+                <button class="btn btn-quit" id="quitBtn">QUIT</button>
+            </div>
+        </div>
+
+        <!-- Leaderboard -->
+        <div id="leaderboard">
+            <div class="leaderboard-title">LEADERBOARD</div>
+            <div id="leaderboardEntries"></div>
+        </div>
+    </div>
+
+    <script type="module" src="/src/client.js"></script>
+</body>
+
+</html>
