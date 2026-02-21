@@ -45,15 +45,11 @@ gridCanvas.width = CANVAS_W;
 gridCanvas.height = CANVAS_H;
 const gridCtx = gridCanvas.getContext('2d');
 
-// Trail canvas for incremental drawing (never fully cleared during a round)
+// Trail canvas array for offscreen buffer (improves performance heavily)
 const trailCanvas = document.createElement('canvas');
 trailCanvas.width = CANVAS_W;
 trailCanvas.height = CANVAS_H;
 const trailCtx = trailCanvas.getContext('2d');
-
-// Track how many trail points we've drawn per player to enable incremental rendering
-const drawnTrailCount = {};
-let needsFullTrailRedraw = true;
 
 // Glow cache
 const glowCache = {};
@@ -105,95 +101,43 @@ function renderStaticGrid() {
     }
 }
 
-// Full trail redraw — only used on round start or when forced
-function fullTrailRedraw() {
+// Draw all trails correctly from start to end points
+function drawAllTrails() {
     trailCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
     const players = network.players;
-    // Reset drawn counts
-    for (const id in drawnTrailCount) {
-        delete drawnTrailCount[id];
-    }
 
     for (const id in players) {
         const p = players[id];
-        if (!p || p.trailLen < 2) {
-            drawnTrailCount[id] = p ? p.trailLen : 0;
-            continue;
-        }
-        if (p.lives !== undefined && p.lives <= 0) {
-            drawnTrailCount[id] = p.trailLen;
-            continue;
-        }
-
-        drawPlayerTrail(p, 0, p.trailLen);
-        drawnTrailCount[id] = p.trailLen;
-    }
-
-    needsFullTrailRedraw = false;
-}
-
-// Draw a player's trail from startPoint to endPoint (for incremental rendering)
-function drawPlayerTrail(p, startPoint, endPoint) {
-    if (endPoint - startPoint < 2 && startPoint === 0) return;
-
-    const alphaBase = p.alive ? 1 : 0.12;
-
-    // We need at least a moveTo point. If startPoint > 0, we use startPoint-1 as moveTo.
-    const moveFrom = startPoint > 0 ? startPoint - 1 : 0;
-
-    // Draw outer glow
-    trailCtx.strokeStyle = p.color;
-    trailCtx.lineWidth = 3;
-    trailCtx.globalAlpha = 0.6 * alphaBase;
-    trailCtx.lineCap = 'round';
-    trailCtx.lineJoin = 'round';
-    trailCtx.beginPath();
-
-    const moveIdx = (p.trailStart + moveFrom) % TRAIL_MAX;
-    trailCtx.moveTo(p.trailX[moveIdx], p.trailY[moveIdx]);
-    for (let i = Math.max(moveFrom + 1, startPoint); i < endPoint; i++) {
-        const idx = (p.trailStart + i) % TRAIL_MAX;
-        trailCtx.lineTo(p.trailX[idx], p.trailY[idx]);
-    }
-    trailCtx.stroke();
-
-    // Draw white core on same path
-    trailCtx.strokeStyle = '#ffffff';
-    trailCtx.lineWidth = 1.5;
-    trailCtx.globalAlpha = 0.85 * alphaBase;
-    trailCtx.stroke();
-
-    trailCtx.globalAlpha = 1;
-}
-
-// Incremental trail update — only draws NEW trail segments
-function updateTrailCanvas() {
-    if (needsFullTrailRedraw) {
-        fullTrailRedraw();
-        return;
-    }
-
-    const players = network.players;
-
-    for (const id in players) {
-        const p = players[id];
-        if (!p) continue;
+        if (!p || p.trailLen < 2) continue;
         if (p.lives !== undefined && p.lives <= 0) continue;
 
-        const prevDrawn = drawnTrailCount[id] || 0;
+        const alphaBase = p.alive ? 1 : 0.12;
 
-        if (p.trailLen > prevDrawn && p.trailLen >= 2) {
-            // Draw only the new segment
-            drawPlayerTrail(p, prevDrawn, p.trailLen);
-            drawnTrailCount[id] = p.trailLen;
-        } else if (p.trailLen === 0 && prevDrawn > 0) {
-            // Trail was reset (new round) — need full redraw
-            needsFullTrailRedraw = true;
-            fullTrailRedraw();
-            return;
+        // Draw outer glow
+        trailCtx.strokeStyle = p.color;
+        trailCtx.lineWidth = 3;
+        trailCtx.globalAlpha = 0.6 * alphaBase;
+        trailCtx.lineCap = 'round';
+        trailCtx.lineJoin = 'round';
+        trailCtx.beginPath();
+
+        let idx = p.trailStart % TRAIL_MAX;
+        trailCtx.moveTo(p.trailX[idx], p.trailY[idx]);
+
+        for (let i = 1; i < p.trailLen; i++) {
+            idx = (p.trailStart + i) % TRAIL_MAX;
+            trailCtx.lineTo(p.trailX[idx], p.trailY[idx]);
         }
+        trailCtx.stroke();
+
+        // Draw white core on same path
+        trailCtx.strokeStyle = '#ffffff';
+        trailCtx.lineWidth = 1.5;
+        trailCtx.globalAlpha = 0.85 * alphaBase;
+        trailCtx.stroke();
     }
+    trailCtx.globalAlpha = 1;
 }
 
 // Main draw function - 60fps (rendering only, no physics)
@@ -207,8 +151,8 @@ function draw() {
     // Static grid
     ctx.drawImage(gridCanvas, 0, 0);
 
-    // Update trail canvas incrementally
-    updateTrailCanvas();
+    // Rebuild trails entirely every frame (safely handles the trailing snake length and wraps)
+    drawAllTrails();
 
     // Stamp cached trails
     ctx.drawImage(trailCanvas, 0, 0);
@@ -392,7 +336,6 @@ function showGame() {
     winnerOverlay.classList.remove('show');
     leaderboard.classList.remove('show');
     scoreBoard.style.display = '';
-    needsFullTrailRedraw = true;
     isGameActive = true;
     lastCountdown = -1;
     currentWinner = null;
