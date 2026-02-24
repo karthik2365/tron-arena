@@ -1,11 +1,12 @@
 import Peer from 'peerjs';
 import { serializeGameState, applyGameState, applyPlayerUpdate, getPlayerUpdate, startRound, movePlayer, checkCollisions, getGameSpeed, createPlayer, MAX_LIVES, rebuildSpatialGrid, resetStaticSent } from './game.js';
 
-// Physics runs at fixed 60Hz, broadcast at ~15fps (every 4th tick)
+// Physics runs at fixed 60Hz, network broadcasts at 10fps (100ms) like slither.io
 const PHYSICS_INTERVAL = 1000 / 60; // ~16.67ms
-const BROADCAST_EVERY = 4;
+const NETWORK_TICK_INTERVAL = 100;  // 10fps network updates (slither.io style)
 const HEARTBEAT_INTERVAL = 1000;
 const STALE_CONNECTION_MS = 6000;
+const MAX_BUFFERED_AMOUNT = 64 * 1024; // 64KB backpressure threshold
 
 const PEER_OPTIONS = {
   debug: 1,
@@ -36,9 +37,11 @@ class Network {
     this.tickCounter = 0;
     this.callbacks = {};
     this.physicsInterval = null; // Fixed-timestep physics timer
+    this.networkInterval = null; // Decoupled network tick (100ms)
     this.heartbeatInterval = null;
     this.lastSeenAt = new Map(); // peerId -> timestamp
     this.lastRecoveryRequestAt = 0;
+    this.pendingStateUpdate = false; // Flag for network tick to know if state changed
   }
 
   on(event, callback) {
@@ -334,7 +337,18 @@ class Network {
     }
   }
 
-  // Host: broadcast state to all clients
+  // Check if connection can accept more data (backpressure)
+  canSend(conn) {
+    if (!conn || !conn.open) return false;
+    // PeerJS wraps RTCDataChannel - check bufferedAmount if available
+    const dc = conn._dc || conn.dataChannel;
+    if (dc && dc.bufferedAmount > MAX_BUFFERED_AMOUNT) {
+      return false; // Backpressure: skip this send
+    }
+    return true;
+  }
+
+  // Host: broadcast state to all clients (with backpressure)
   broadcastState() {
     if (!this.isHost) return;
 
@@ -348,7 +362,7 @@ class Network {
 
     const msg = { type: 'state', state };
     for (const [peerId, conn] of this.connections) {
-      if (conn.open) {
+      if (this.canSend(conn)) {
         conn.send(msg);
       }
     }
@@ -481,13 +495,21 @@ class Network {
 
   // Start the fixed-timestep physics loop (decoupled from rendering)
   startPhysicsLoop() {
-    // Clean up any existing interval
+    // Clean up any existing intervals
     this.stopPhysicsLoop();
 
     this.tickCounter = 0;
+    this.pendingStateUpdate = false;
+
+    // Physics at 60Hz
     this.physicsInterval = setInterval(() => {
       this.physicsTick();
     }, PHYSICS_INTERVAL);
+
+    // Network at 10Hz (100ms) - decoupled from physics like slither.io
+    this.networkInterval = setInterval(() => {
+      this.networkTick();
+    }, NETWORK_TICK_INTERVAL);
   }
 
   stopPhysicsLoop() {
@@ -495,6 +517,17 @@ class Network {
       clearInterval(this.physicsInterval);
       this.physicsInterval = null;
     }
+    if (this.networkInterval) {
+      clearInterval(this.networkInterval);
+      this.networkInterval = null;
+    }
+  }
+
+  // Network tick - runs at 10Hz, batches all state updates
+  networkTick() {
+    if (!this.isHost || !this.roundActive) return;
+    // Always broadcast on network tick to keep clients in sync
+    this.broadcastState();
   }
 
   // Single physics tick — runs at fixed 60Hz
@@ -576,12 +609,8 @@ class Network {
       }
     }
 
-    // Broadcast at ~15fps
-    this.tickCounter++;
-    if (this.tickCounter >= BROADCAST_EVERY) {
-      this.tickCounter = 0;
-      this.broadcastState();
-    }
+    // Network broadcasting is now handled by networkTick() at 10Hz
+    // Physics tick no longer broadcasts - fully decoupled
   }
 
   // Host game loop - now a no-op since physics runs on its own timer
