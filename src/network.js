@@ -4,6 +4,20 @@ import { serializeGameState, applyGameState, applyPlayerUpdate, getPlayerUpdate,
 // Physics runs at fixed 60Hz, broadcast at ~15fps (every 4th tick)
 const PHYSICS_INTERVAL = 1000 / 60; // ~16.67ms
 const BROADCAST_EVERY = 4;
+const HEARTBEAT_INTERVAL = 1000;
+const STALE_CONNECTION_MS = 6000;
+
+const PEER_OPTIONS = {
+  debug: 1,
+  pingInterval: HEARTBEAT_INTERVAL,
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' }
+    ]
+  }
+};
 
 class Network {
   constructor() {
@@ -22,6 +36,9 @@ class Network {
     this.tickCounter = 0;
     this.callbacks = {};
     this.physicsInterval = null; // Fixed-timestep physics timer
+    this.heartbeatInterval = null;
+    this.lastSeenAt = new Map(); // peerId -> timestamp
+    this.lastRecoveryRequestAt = 0;
   }
 
   on(event, callback) {
@@ -34,15 +51,66 @@ class Network {
     }
   }
 
+  markPeerSeen(peerId) {
+    if (!peerId) return;
+    this.lastSeenAt.set(peerId, Date.now());
+  }
+
+  startHeartbeat() {
+    this.stopHeartbeat();
+    this.heartbeatInterval = setInterval(() => {
+      this.heartbeatTick();
+    }, HEARTBEAT_INTERVAL);
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
+  heartbeatTick() {
+    const now = Date.now();
+
+    if (this.isHost) {
+      for (const [peerId, conn] of this.connections) {
+        if (!conn.open) continue;
+
+        conn.send({ type: 'ping', t: now });
+
+        const lastSeen = this.lastSeenAt.get(peerId) || now;
+        if (now - lastSeen > STALE_CONNECTION_MS) {
+          resetStaticSent();
+          conn.send({
+            type: 'state',
+            state: serializeGameState(this.players, this.roundActive, this.countdown, this.roundStartTime, this.matchWinner)
+          });
+          this.lastSeenAt.set(peerId, now);
+        }
+      }
+      return;
+    }
+
+    const conn = this.connections.get(this.hostId);
+    if (!conn || !conn.open) return;
+
+    conn.send({ type: 'ping', t: now });
+
+    const lastSeen = this.lastSeenAt.get(this.hostId) || now;
+    if (now - lastSeen > STALE_CONNECTION_MS && now - this.lastRecoveryRequestAt > STALE_CONNECTION_MS) {
+      conn.send({ type: 'snapshotRequest' });
+      this.lastRecoveryRequestAt = now;
+    }
+  }
+
   // Create a new room (host)
   async createRoom(playerName) {
     this.isHost = true;
     this.roomCode = this.generateRoomCode();
 
     // Connect to signaling server and get our peer ID
-    this.peer = new Peer(this.roomCode, {
-      debug: 1
-    });
+    this.peer = new Peer(this.roomCode, PEER_OPTIONS);
 
     return new Promise((resolve, reject) => {
       this.peer.on('open', (id) => {
@@ -50,6 +118,7 @@ class Network {
         this.myId = id;
         this.hostId = id;
         this.players[this.myId] = createPlayer(this.myId, 0, playerName);
+        this.startHeartbeat();
         this.emit('roomCreated', { code: id });
         resolve(id);
       });
@@ -71,9 +140,7 @@ class Network {
     this.hostId = roomCode;
     this.roomCode = roomCode;
 
-    this.peer = new Peer({
-      debug: 1
-    });
+    this.peer = new Peer(PEER_OPTIONS);
 
     return new Promise((resolve, reject) => {
       this.peer.on('open', (id) => {
@@ -86,6 +153,8 @@ class Network {
         conn.on('open', () => {
           console.log('Connected to host:', roomCode);
           this.connections.set(roomCode, conn);
+          this.markPeerSeen(roomCode);
+          this.startHeartbeat();
 
           // Send join request
           conn.send({
@@ -98,10 +167,14 @@ class Network {
         });
 
         conn.on('data', (data) => {
+          this.markPeerSeen(conn.peer);
           this.handleMessage(conn, data);
         });
 
         conn.on('close', () => {
+          this.connections.delete(conn.peer);
+          this.lastSeenAt.delete(conn.peer);
+          this.stopHeartbeat();
           this.emit('disconnected', {});
         });
 
@@ -121,14 +194,17 @@ class Network {
   handleConnection(conn) {
     console.log('Incoming connection from:', conn.peer);
     this.connections.set(conn.peer, conn);
+    this.markPeerSeen(conn.peer);
 
     conn.on('data', (data) => {
+      this.markPeerSeen(conn.peer);
       this.handleMessage(conn, data);
     });
 
     conn.on('close', () => {
       console.log('Connection closed:', conn.peer);
       this.connections.delete(conn.peer);
+      this.lastSeenAt.delete(conn.peer);
 
       // Remove player from game
       delete this.players[conn.peer];
@@ -191,6 +267,26 @@ class Network {
         this.roundStartTime = data.state.rst !== undefined ? data.state.rst : data.state.roundStartTime;
         this.matchWinner = data.state.mw !== undefined ? data.state.mw : data.state.matchWinner;
         this.emit('stateUpdate', { state: data.state });
+        break;
+
+      case 'ping':
+        if (conn.open) {
+          conn.send({ type: 'pong', t: data.t || Date.now() });
+        }
+        break;
+
+      case 'pong':
+        // keepalive acknowledgement
+        break;
+
+      case 'snapshotRequest':
+        if (this.isHost && conn.open) {
+          resetStaticSent();
+          conn.send({
+            type: 'state',
+            state: serializeGameState(this.players, this.roundActive, this.countdown, this.roundStartTime, this.matchWinner)
+          });
+        }
         break;
 
       case 'gameStart':
@@ -511,10 +607,12 @@ class Network {
   // Disconnect
   disconnect() {
     this.stopPhysicsLoop();
+    this.stopHeartbeat();
     if (this.peer) {
       this.peer.destroy();
     }
     this.connections.clear();
+    this.lastSeenAt.clear();
     this.players = {};
   }
 }
